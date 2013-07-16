@@ -2,12 +2,17 @@
 import urwid 
 
 choices=u'1)Добавление ячеек,2)Редактирование одной ячейки,3)Перезагрузка сервера'.split(',')
-
+def parentM1(button):
+    menu(u'Редактор базы АКХ', choices)
 def enter_row(button, data):
     response=urwid.Text([u'Количество ячеек: ', data.edit_text, u'\n'], align='center')
-    done = urwid.Button('Ok')
+    done = urwid.Button('Выход')
+    parentM=urwid.Button('Основное меню')
     urwid.connect_signal(done,'click', exit_pr)
-    main.original_widget=urwid.Filler(urwid.Pile([response, urwid.AttrMap(done, None, focus_map='reversed')]))
+    urwid.connect_signal(parentM, 'click', parentM1)
+    main.original_widget=urwid.Filler(urwid.Pile([response, urwid.AttrMap(done, None, focus_map='reversed'), urwid.AttrMap(parentM, None, focus_map='reversed')]))
+    
+    
 
 def choice_item(button, choice):
     if choice[0]=='1':
