@@ -2,10 +2,14 @@
 import urwid 
 import os
 import sys
+import sqlite3 as db 
 from subprocess import Popen, PIPE
 
+base='base.db'
+con=db.connect(base)
+cur=con.cursor()
 #Функция создания кнопок 
-def menu_button(caption, callback, data=None):#принимает значения название кнопки и callback функцию
+def menu_button(caption, callback, data=None):#принимает значения название кнопки и callback функцию, data данные передаваемые в callback функцию
     button = urwid.Button(caption)
     urwid.connect_signal(button, 'click', callback, data)
     return urwid.AttrMap(button, None, focus_map='reversed')
@@ -27,19 +31,45 @@ def item_chosen(button):
     top.open_box(urwid.Filler(urwid.Pile([response, done])))
 
 def update_row(button, data): 
-    summ, num = data
+    summ, num, secnum = data
     if int(summ.edit_text)>=num:
-        response=urwid.Text([u'Стойка ', str(num),u' из ', summ.edit_text,u' введите заводской номер' u'\n'])
-        done=menu_button(u'Ok', update_row, (summ, num+1))
+        if int(summ.edit_text)==num:
+            response=urwid.Text([u'Все стойки прописаны'])
+        else:
+            response=urwid.Edit([u'Стойка ', str(num+1),u' из ', summ.edit_text,u' введите заводской номер' u'\n'])
+        if secnum:
+            cur.execute("""UPDATE cells set rowindex=%d where secnum=%d """%(num,int(secnum.edit_text) ))
+            con.commit()
+        done=menu_button(u'Ok', update_row, (summ, num+1,response))
         top.this_box(urwid.Filler(urwid.Pile([response, done])))
     else:
         for i in range(top.box_level-2):
             top.original_widget=top.original_widget[0]
             top.box_level-=1
 
+def edit_row(button):
+    response = urwid.Edit(u'Введите порядковый номер стойки: \n')
+    done=menu_button(u'Ok', updateOneRow, (response,None))
+    top.open_box(urwid.Filler(urwid.Pile([response, done])))
+
+def updateOneRow(button, data):
+    position, rownum =data
+    if rownum:
+        cur.execute("""UPDATE cells set rowindex=%d where secnum=%d """%(position,int(rownum.edit_text) ))
+        con.commit()
+        top.original_widget=top.original_widget[0]
+        top.box_level-=1
+    else:
+        position=int(position.edit_text)
+        response=urwid.Edit(u'Введите номер контроллера: \n')
+        done=menu_button('Ok', updateOneRow,(position, response))
+        top.this_box(urwid.Filler(urwid.Pile([response,done])))
+
+
+
 def entery_row(button):
     response = urwid.Edit(u'Введите количество стоеек: \n')
-    done=menu_button(u'Ok', update_row, (response,1))
+    done=menu_button(u'Ok', update_row, (response,0,None))
     top.open_box(urwid.Filler(urwid.Pile([response,done])))
 
 def shutdown_P(button):
@@ -70,7 +100,7 @@ def youroot():
 menu_top= menu([u'Основное меню ', youroot()],[
     sub_menu(u'Редактирование стоеек',[
         menu_button(u'Прописывание новых стоеек', entery_row),
-        menu_button(u'Терминал', item_chosen),
+        menu_button(u'Редактирование одной стойки', edit_row),
         
             ]),
             sub_menu(u'Работа с сервером', [
@@ -80,13 +110,21 @@ menu_top= menu([u'Основное меню ', youroot()],[
                 ]),
             menu_button(u'Выход', exit_program),
             ])
-class CascadingBoxes(urwid.WidgetPlaceholder):
+
+class CascadingBoxes(urwid.WidgetPlaceholder): 
     max_box_levels=4
 
     def __init__(self,box):
         super(CascadingBoxes, self).__init__(urwid.SolidFill(u'\N{MEDIUM SHADE}'))
         self.box_level=0
         self.open_box(box)
+        self.palette=[('streak', 'black', 'dark red'),]
+        self.text_header=(u'Редактор базы АКХ:')
+        blank=urwid.Divider()
+        listbox_content=[blank, urwid.Padding(urwid.Text(self.text_header), left=2, right=2,min_width=20)]
+        header=urwid.AttrWrap(urwid.Text(self.text_header), 'header')
+        listbox=urwid.ListBox(urwid.SimpleFocusListWalker(listbox_content))
+        frame=urwid.Frame(urwid.AttrWrap(listbox, 'header'), header=header)
 
     def open_box(self,box):
         self.original_widget = urwid.Overlay(urwid.LineBox(box), 
@@ -114,4 +152,4 @@ class CascadingBoxes(urwid.WidgetPlaceholder):
         else:
             return super(CascadingBoxes, self).keypress(size, key)
 top = CascadingBoxes(menu_top)
-urwid.MainLoop(top, palette=[('reversed', 'standout', '')]).run()
+urwid.MainLoop(top, palette=[('reversed', 'standout', ''),('header', 'black', 'dark red')]).run()
