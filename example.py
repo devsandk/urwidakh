@@ -55,8 +55,13 @@ def edit_row(button):
 def updateOneRow(button, data):
     position, rownum =data
     if rownum:
-        cur.execute("""UPDATE cells set rowindex=%d where secnum=%d """%(position,int(rownum.edit_text) ))
+        cur.execute("""UPDATE cells SET rowindex=%d WHERE secnum=%d """%(position,int(rownum.edit_text) ))
         con.commit()
+        count=1
+        for i in range(int(position)*3-2,int(position)*3+1):
+            cur.execute("""UPDATE cells SET num=%d, size=2 WHERE rowindex=%d AND cellpos=%d"""%(i, int(position),count))
+            con.commit()
+            count+=1
         top.original_widget=top.original_widget[0]
         top.box_level-=1
     else:
