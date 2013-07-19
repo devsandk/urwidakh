@@ -40,6 +40,11 @@ def update_row(button, data):
         if secnum:
             cur.execute("""UPDATE cells set rowindex=%d where secnum=%d """%(num,int(secnum.edit_text) ))
             con.commit()
+            count=1
+            for i in range(num*3-2,num*3+1):
+                cur.execute("UPDATE cells SET num=%d, size=2 WHERE rowindex=%d AND cellpos=%d"%(i,num,count))
+                count+=1
+            con.commit()
         done=menu_button(u'Ok', update_row, (summ, num+1,response))
         top.this_box(urwid.Filler(urwid.Pile([response, done])))
     else:
@@ -58,7 +63,7 @@ def updateOneRow(button, data):
         cur.execute("""UPDATE cells SET rowindex=%d WHERE secnum=%d """%(position,int(rownum.edit_text) ))
         con.commit()
         count=1
-        for i in range(int(position)*3-2,int(position)*3+1):
+        for i in range(position*3-2,position*3+1):
             cur.execute("""UPDATE cells SET num=%d, size=2 WHERE rowindex=%d AND cellpos=%d"""%(i, int(position),count))
             con.commit()
             count+=1
