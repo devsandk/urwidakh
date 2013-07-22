@@ -39,7 +39,7 @@ SQL['cell']=[]
 
 
 def query_num(data):
-    SQL['cell'].append("UPDATE cells SET num=%d, size=2 WHERE rowindex=%d AND cellpos=%d"%data)
+    SQL['cell'].append("UPDATE cells SET num=%d, size=%d WHERE rowindex=%d AND cellpos=%d"%data)
 
 def query_rowindex(position, rownum):
     execute="UPDATE cells SET rowindex=%d WHERE secnum=%d"
@@ -51,6 +51,7 @@ def startSQL(button):
     for val in SQL['cell']:
         cur.execute(val)
     con.commit()
+    clear_level(2)
 #end section 
 
 #******************************************************************#
@@ -90,10 +91,10 @@ def update_row(button, data):
         else:
             response=urwid.Edit([u'Стойка ', str(num+1),u' из ', summ.edit_text,u' введите заводской номер' u'\n'])
         if secnum:
-            SQL['row'].append("""UPDATE set rowinde=%d WHERE secnum=%d"""%(num, int(secnum.edit_text)))
+            query_rowindex(num, int(secnum.edit_text))
             count=1
             for i in range(num*3-2,num*3+1):
-                SQL['cell'].append("UPDATE cells SET num=%d, size=2 WHERE rowindex=%d AND cellpos=%d"%(i,num,count))
+                query_num((i,2,num,count))
                 count+=1
         done=menu_button(u'Ok', update_row, (summ, num+1,response))
         top.this_box(urwid.Filler(urwid.Pile([response, done])))
@@ -106,6 +107,52 @@ def entery_row(button):
     response = urwid.Edit(u'Введите количество стоеек: \n')
     done=menu_button(u'Ok', update_row, (response,0,None))
     top.open_box(urwid.Filler(urwid.Pile([response,done])))
+
+def edit_cell(button,data=None,Type=None):
+    if data==None:
+        bgroup=[]
+        b1=urwid.RadioButton(bgroup, u'4 ячейки',False)
+        urwid.connect_signal(b1, 'change', edit_cell,(1))
+        b2=urwid.RadioButton(bgroup, u'3 ячейки',False)
+        urwid.connect_signal(b2, 'change', edit_cell,2)
+        b3=urwid.RadioButton(bgroup, u'2 ячейки',False)
+        urwid.connect_signal(b3, 'change', edit_cell,3)
+        b4=urwid.RadioButton(bgroup, u'1 ячейка',False)
+        urwid.connect_signal(b4, 'change', edit_cell,4)
+        top.this_box(urwid.Filler(urwid.Pile([b1,b2,b3,b4])))
+    else:
+        if Type!=None:
+            cell=Type
+            response=urwid.Edit([u'Введите диапозон стоек,\nв качестве разделителя используйте "-"\n'])
+            startcell=urwid.Edit([u'Введите номер начальной ячейки: \n'])
+            done=menu_button(u'Ok',eddcel,(response,cell,startcell))
+            top.this_box(urwid.Filler(urwid.Pile([response,startcell,done])))
+
+def eddcel(button,data):
+    rang, cell, startcell = data
+    startcell=int(startcell.edit_text)
+    rang=rang.edit_text.split('-')
+    start=int(rang[0])
+    num=[0,4,3,2,1]
+    summ=1
+    if len(rang)>1:
+        summ=(int(rang[1])-int(rang[0]))
+    for val in range(summ+1):
+        count=1
+        for i in range(1,5):
+            query_num((99999,2,start,i))
+        for number in range(startcell,startcell+num[cell]):
+            query_num((number,cell,start,count))
+            count+=1
+        startcell+=num[cell]
+        start+=1
+    done=menu_button(['Ok',str(cell)], startSQL)
+    top.this_box(urwid.Filler(urwid.Pile([done])))
+
+def clear_level(data):
+    for i in range(top.box_level-data):
+        top.original_widget=top.original_widget[0]
+        top.box_level-=1
 #end section
 class CascadingBoxes(urwid.WidgetPlaceholder): 
     max_box_levels=4
@@ -150,7 +197,7 @@ class CascadingBoxes(urwid.WidgetPlaceholder):
 menu_top= menu([u'Основное меню ', youroot()],[
     sub_menu(u'Редактирование стоеек',[
         menu_button(u'Прописывание новых стоеек', entery_row),
-       # menu_button(u'Редактирование одной стойки', edit_row),
+        menu_button(u'Редактирование ячеек', edit_cell),
         
             ]),
             sub_menu(u'Работа с сервером', [
