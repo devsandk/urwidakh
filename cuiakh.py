@@ -1,14 +1,16 @@
 # -*- coding:utf-8 -*-
 import urwid 
+import re
 import os
+import os.path
 import sys
 import sqlite3 as db 
 from subprocess import Popen, PIPE
 
-base='base.db'
-con=db.connect(base)
-cur=con.cursor()
 
+base=None
+con=None
+cur=None
 
 
 def menu_button(caption, callback, data=None):
@@ -31,6 +33,32 @@ def item_chosen(button):
     response=urwid.Text([u'Ваш выбор: \n', button.label, u'\n'])
     done=menu_button(u'Ok', exit_program)
     top.open_box(urwid.Filler(urwid.Pile([response, done])))
+def setAdmincard(button, data=None):
+    global base
+    if base==None:
+        chbase(None)
+        return None
+    if data==None:
+        usercard=urwid.Edit(u'Введите номер карты: \n')
+        text=urwid.Text(u'Введите номер пользователя от 9 до 12,\nесли введете больше или меньше \nбудете посланы на хуй:')
+        userid=urwid.Edit(u'')
+        done=menu_button(u'Ok', setAdmincard,(usercard, userid))
+        top.open_box(urwid.Filler(urwid.Pile([usercard, text, userid,done])))
+    else:
+        usercard, userid =data
+        if int(userid.edit_text) not in [9,10,11,12]:
+            clear_level(2)
+            response=urwid.Text(u'Ну не мудак ли? \nОт 9 до 12\n')
+            done=menu_button(u'Ok', setAdmincard, None)
+            top.this_box(urwid.Filler(urwid.Pile([response,done])))
+        else:
+            execute="UPDATE users SET usercard=%s WHERE userid=%d"
+
+            
+            cur.execute(execute%(str(usercard.edit_text),int(userid.edit_text)))
+            con.commit()
+            clear_level(2)
+
 #section SQL
 
 SQL={}
@@ -46,17 +74,29 @@ def query_rowindex(position, rownum):
     SQL['row'].append(execute % (position,rownum))
 
 def startSQL(button):
-    for val in SQL['row']:
-        cur.execute(val)
-    for val in SQL['cell']:
-        cur.execute(val)
-    con.commit()
-    clear_level(2)
+    global base
+    if base==None:
+        chbase(None)
+    else:
+        for val in SQL['row']:
+            cur.execute(val)
+        for val in SQL['cell']:
+            cur.execute(val)
+        con.commit()
+        clear_level(2)
 #end section 
 
 #******************************************************************#
 
 #section AKH functions
+def logVIM(button):
+    global base
+    if base==None:
+        chbase(None)
+    else:
+        p=Popen(['vim','avkars.log'])
+    #p.communicate()
+        p.wait()
 
 def youroot():
     p, error = Popen(['whoami'], stdout=PIPE).communicate()
@@ -69,6 +109,50 @@ def exit_program(button):
 def reboot(button):
     p=Popen(['sudo', 'reboot'])
     p.communicate()
+
+def chbase(button, pat=None):
+    buton=[menu_button(u'...', chbase,u'...')]
+    def show_dir(direct):
+        buton=[]
+        for val in direct:
+            m=re.match('^\.[0-9a-zA-Z\-\_]*', val)
+            if os.path.isdir(val) and m==None or val=='base.db':
+                buton.append(menu_button(val, chbase, os.path.abspath(val)))
+        return buton
+    if pat==None:
+        direct=os.listdir(os.curdir)
+        pat=os.path.abspath(os.curdir)
+        buton=buton+show_dir(direct)
+        buton.append(urwid.Text(pat))
+        top.this_box(urwid.Filler(urwid.Pile(buton)))
+    elif pat==u'...':
+        absp=os.path.abspath(os.curdir).split('/')
+        absp='/'.join(absp[:-1])
+        absp='/' if absp==''else absp
+        os.chdir(absp)
+        direct=os.listdir(absp)
+
+        buton=buton+show_dir(direct)
+    
+        buton.append(urwid.Text(absp))
+        top.this_box(urwid.Filler(urwid.Pile(buton)))
+    elif pat.find('base.db')!=-1:
+        global base
+        base=pat
+        global con
+        con=db.connect(base)
+        global cur
+        cur=con.cursor()
+        while top.box_level>1:
+            top.original_widget=top.original_widget[0]
+            top.box_level-=1
+    else:
+        os.chdir(pat)
+        direct=os.listdir(pat)
+        buton=buton+show_dir(direct)
+        buton.append(urwid.Text(pat))
+        top.this_box(urwid.Filler(urwid.Pile(buton)))
+
 
 def timecorr(button,date=None):
     if date:
@@ -108,6 +192,18 @@ def entery_row(button):
     done=menu_button(u'Ok', update_row, (response,0,None))
     top.open_box(urwid.Filler(urwid.Pile([response,done])))
 
+
+def redo_row(button,data=None):
+    if data==None:
+        row=urwid.Edit(u'Введите порядковый номер стойки:\n')
+        rang=urwid.Edit(u'Введите заводской номер контроллера:\n')
+        done=menu_button(u"Ok",redo_row,(row, rang) )
+        top.open_box(urwid.Filler(urwid.Pile([row,rang, done])))
+    else:
+        row, rang=data
+        query_rowindex(int(row.edit_text),int(rang.edit_text))
+        done=menu_button(u'Записать', startSQL)
+        top.this_box(urwid.Filler(urwid.Pile([done])))
 def edit_cell(button,data=None,Type=None):
     if data==None:
         bgroup=[]
@@ -146,7 +242,7 @@ def eddcel(button,data):
             count+=1
         startcell+=num[cell]
         start+=1
-    done=menu_button(['Ok',str(cell)], startSQL)
+    done=menu_button(['Ok'], startSQL)
     top.this_box(urwid.Filler(urwid.Pile([done])))
 
 def clear_level(data):
@@ -195,16 +291,19 @@ class CascadingBoxes(urwid.WidgetPlaceholder):
         else:
             return super(CascadingBoxes, self).keypress(size, key)
 menu_top= menu([u'Основное меню ', youroot()],[
+    menu_button(u'Выбор файла базы', chbase),
     sub_menu(u'Редактирование стоеек',[
         menu_button(u'Прописывание новых стоеек', entery_row),
+        menu_button(u'Редактирование одной стойки', redo_row),
         menu_button(u'Редактирование ячеек', edit_cell),
-        
+        menu_button(u'Прописывание административных карт', setAdmincard),
             ]),
             sub_menu(u'Работа с сервером', [
                 menu_button(u'Перезагрузка сервера', reboot),
                 menu_button(u'Выключение сервера', shutdown_P),
                 menu_button(u'Установка даты и время', timecorr),
                 ]),
+            menu_button(u'Просмотреть лог файл (VIM)',logVIM),
             menu_button(u'Выход', exit_program),
             menu_button(u'Применить изменения', startSQL)
         ])
